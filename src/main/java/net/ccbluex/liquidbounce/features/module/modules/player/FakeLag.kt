@@ -44,12 +44,12 @@ import net.minecraft.util.Vec3
 import org.lwjgl.opengl.GL11.*
 import java.awt.Color
 import java.util.*
-import java.util.concurrent.ConcurrentHashMap
+import java.util.LinkedHashMap
 
 object FakeLag : Module("FakeLag", ModuleCategory.PLAYER, gameDetecting = false) {
 
-    private val packetQueue = ConcurrentHashMap<Packet<*>, Pair<Long, Long>>()
-    private val positions = ConcurrentHashMap<Vec3, Pair<Long, Long>>()
+    private val packetQueue = LinkedHashMap<Packet<*>, Long>()
+    private val positions = LinkedHashMap<Vec3, Long>()
     private val delay by IntegerValue("Delay", 550, 0..1000)
     private val recoilTime by IntegerValue("RecoilTime", 750, 0..2000)
     private val distanceToPlayers by FloatValue("AllowedDistanceToPlayers", 3.5f, 0.0f..6.0f)
@@ -117,9 +117,9 @@ object FakeLag : Module("FakeLag", ModuleCategory.PLAYER, gameDetecting = false)
             event.cancelEvent()
             if (packet is C03PacketPlayer && packet.isMoving) {
                 val packetPos = Vec3(packet.x, packet.y, packet.z)
-                positions[packetPos] = System.currentTimeMillis() to System.nanoTime()
+                positions[packetPos] = System.currentTimeMillis()
             }
-            packetQueue[packet] = System.currentTimeMillis() to System.nanoTime()
+            packetQueue[packet] = System.currentTimeMillis()
         }
     }
 
@@ -136,7 +136,7 @@ object FakeLag : Module("FakeLag", ModuleCategory.PLAYER, gameDetecting = false)
         val thePlayer = mc.thePlayer ?: return
 
         if (distanceToPlayers > 0.0) {
-            val filtered = positions.entries.sortedBy { it.value.second }.map { it.key }
+            val filtered = positions.keys.toList()
             var serverPos = filtered.firstOrNull()
             if (serverPos == null)
                 serverPos = Vec3(mc.thePlayer.posX, mc.thePlayer.posY, mc.thePlayer.posZ)
@@ -171,7 +171,7 @@ object FakeLag : Module("FakeLag", ModuleCategory.PLAYER, gameDetecting = false)
             if (Breadcrumbs.colorRainbow) rainbow()
             else Color(Breadcrumbs.colorRed, Breadcrumbs.colorGreen, Breadcrumbs.colorBlue)
 
-        val filtered = positions.entries.sortedBy { it.value.second }.map { it.key }
+        val filtered = positions.keys.toList()
 
         val module = Blink
 
@@ -212,7 +212,7 @@ object FakeLag : Module("FakeLag", ModuleCategory.PLAYER, gameDetecting = false)
     private fun blink(handlePackets: Boolean = true) {
         if (handlePackets) {
             resetTimer.reset()
-            val filtered = packetQueue.entries.sortedBy { it.value.second }.map { it.key }
+            val filtered = packetQueue.keys.toList()
 
             for (packet in filtered) {
                 sendPacket(packet, false)
@@ -225,15 +225,17 @@ object FakeLag : Module("FakeLag", ModuleCategory.PLAYER, gameDetecting = false)
     }
 
     private fun handlePackets() {
-        val filtered = packetQueue.filter { entry -> entry.value.first <= (System.currentTimeMillis() - delay) }.entries.sortedBy { it.value.second }.map { it.key }
+        val filtered = packetQueue.entries.filter { (key: Packet<*>, value: Long) -> value <= (System.currentTimeMillis() - delay) }.toList()
 
-        for (packet in filtered) {
+        filtered.forEach { entry ->
+            val packet = entry.key
             sendPacket(packet, false)
             packetQueue.remove(packet)
         }
-        val filtered2 = positions.filter { entry -> entry.value.first <= (System.currentTimeMillis() - delay) }.entries.sortedBy { it.value.second }.map { it.key }
 
-        for (position in filtered2) {
+        val filtered2 = positions.entries.filter { (key: Vec3, value: Long) -> value <= (System.currentTimeMillis() - delay) }.toList()
+        filtered2.forEach { entry ->
+            val position = entry.key
             positions.remove(position)
         }
     }
