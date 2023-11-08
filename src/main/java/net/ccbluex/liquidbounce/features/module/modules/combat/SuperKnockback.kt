@@ -25,22 +25,22 @@ object SuperKnockback : Module("SuperKnockback", ModuleCategory.COMBAT) {
 
     private val delay by IntegerValue("Delay", 0, 0, 500)
     private val hurtTime by IntegerValue("HurtTime", 10, 0, 10)
-
     private val mode by ListValue("Mode", arrayOf("SprintTap", "WTap", "Old", "Silent", "Packet", "SneakPacket"), "Old")
-        private val reSprintMaxTicks: IntegerValue = object : IntegerValue("ReSprintMaxTicks", 2, 1..5) {
-            override fun isSupported() = mode == "WTap"
+    private val reSprintMaxTicks: IntegerValue = object : IntegerValue("ReSprintMaxTicks", 2, 1..5) {
+        override fun isSupported() = mode == "WTap"
 
-            override fun onChange(oldValue: Int, newValue: Int) = newValue.coerceAtLeast(reSprintMinTicks.get())
-        }
-        private val reSprintMinTicks: IntegerValue = object : IntegerValue("ReSprintMinTicks", 1, 1..5) {
-            override fun isSupported() = mode == "WTap"
+        override fun onChange(oldValue: Int, newValue: Int) = newValue.coerceAtLeast(reSprintMinTicks.get())
+    }
+    private val reSprintMinTicks: IntegerValue = object : IntegerValue("ReSprintMinTicks", 1, 1..5) {
+        override fun isSupported() = mode == "WTap"
 
-            override fun onChange(oldValue: Int, newValue: Int) = newValue.coerceAtMost(reSprintMaxTicks.get())
-        }
+        override fun onChange(oldValue: Int, newValue: Int) = newValue.coerceAtMost(reSprintMaxTicks.get())
+    }
 
     private val onlyGround by BoolValue("OnlyGround", false)
+
     val onlyMove by BoolValue("OnlyMove", true)
-        val onlyMoveForward by BoolValue("OnlyMoveForward", true) { onlyMove }
+    val onlyMoveForward by BoolValue("OnlyMoveForward", true) { onlyMove }
 
     private var ticks = 0
     private var forceSprintState = 0
@@ -115,14 +115,15 @@ object SuperKnockback : Module("SuperKnockback", ModuleCategory.COMBAT) {
 
     @EventTarget
     fun onPostSprintUpdate(event: PostSprintUpdateEvent) {
+        val player = mc.thePlayer ?: return
         if (mode == "SprintTap") {
             if (ticks == 2) {
-                mc.thePlayer.isSprinting = false
+                player.isSprinting = false
                 forceSprintState = 2
                 ticks--
             } else if (ticks == 1) {
-                if (mc.thePlayer.movementInput.moveForward > 0.8) {
-                    mc.thePlayer.isSprinting = true
+                if (player.movementInput.moveForward > 0.8) {
+                    player.isSprinting = true
                 }
                 forceSprintState = 1
                 ticks--
@@ -146,12 +147,13 @@ object SuperKnockback : Module("SuperKnockback", ModuleCategory.COMBAT) {
 
     @EventTarget
     fun onPacket(event: PacketEvent) {
+        val player = mc.thePlayer ?: return
         val packet = event.packet
         if (packet is C03PacketPlayer && mode == "Silent") {
             if (ticks == 2) {
                 sendPacket(C0BPacketEntityAction(mc.thePlayer, STOP_SPRINTING))
                 ticks--
-            } else if (ticks == 1) {
+            } else if (ticks == 1 && player.isSprinting) {
                 sendPacket(C0BPacketEntityAction(mc.thePlayer, START_SPRINTING))
                 ticks--
             }
