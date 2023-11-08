@@ -316,12 +316,10 @@ object Backtrack : Module("Backtrack", ModuleCategory.COMBAT) {
         }
     }
 
-    private fun handlePackets() {
-        val filtered = packetQueue.entries.filter { entry -> entry.value <= (System.currentTimeMillis() - delay) }.toList()
-
-        filtered.forEach { entry ->
-            val packet = entry.key
-            val timestamp = entry.value
+    private fun handlePackets() =
+        packetQueue.forEach { (packet, timestamp) ->
+            if (timestamp > System.currentTimeMillis() - delay)
+                return@forEach
 
             if (packet is S14PacketEntity && packet.getEntity(mc.theWorld) == target) {
                 offsetX -= packet.realMotionX
@@ -343,19 +341,12 @@ object Backtrack : Module("Backtrack", ModuleCategory.COMBAT) {
 
             packetQueue.remove(packet)
         }
-    }
 
     private fun clearPackets(handlePackets: Boolean = true) {
-        if (handlePackets) {
-            val filtered = packetQueue.keys.toList()
+        if (handlePackets)
+            packetQueue.keys.forEach(::handlePacket)
 
-            for (packet in filtered) {
-                handlePacket(packet)
-                packetQueue.remove(packet)
-            }
-        } else {
-            packetQueue.clear()
-        }
+        packetQueue.clear()
 
         reset()
     }
@@ -420,9 +411,9 @@ object Backtrack : Module("Backtrack", ModuleCategory.COMBAT) {
             entity.prevPosX = backtrackData.x
             entity.prevPosY = backtrackData.y
             entity.prevPosZ = backtrackData.z
-            if (action()) {
+
+            if (action())
                 break
-            }
         }
 
         // Reset position

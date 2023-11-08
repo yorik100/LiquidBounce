@@ -50,13 +50,12 @@ object Sprint : Module("Sprint", ModuleCategory.MOVEMENT, gameDetecting = false)
     fun correctSprintState(movementInput: MovementInput, isUsingItem: Boolean) {
         val player = mc.thePlayer ?: return
 
-        val module = SuperKnockback
-        if (module.breakSprint()) {
+        if (SuperKnockback.breakSprint()) {
             player.isSprinting = false
             return
         }
 
-        if (onlyOnSprintPress && !player.isSprinting && !mc.gameSettings.keyBindSprint.isKeyDown && !module.startSprint() && !isSprinting)
+        if (onlyOnSprintPress && !player.isSprinting && !mc.gameSettings.keyBindSprint.isKeyDown && !SuperKnockback.startSprint() && !isSprinting)
             return
 
         if (Scaffold.handleEvents()) {
