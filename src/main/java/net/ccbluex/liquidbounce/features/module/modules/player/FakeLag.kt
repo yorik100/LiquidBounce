@@ -19,8 +19,10 @@ import net.ccbluex.liquidbounce.utils.PacketUtils.sendPacket
 import net.ccbluex.liquidbounce.utils.render.ColorUtils.rainbow
 import net.ccbluex.liquidbounce.utils.render.RenderUtils.glColor
 import net.ccbluex.liquidbounce.utils.timing.MSTimer
+import net.ccbluex.liquidbounce.utils.extensions.*
 import net.ccbluex.liquidbounce.value.BoolValue
 import net.ccbluex.liquidbounce.value.IntegerValue
+import net.ccbluex.liquidbounce.value.FloatValue
 import net.ccbluex.liquidbounce.value.ListValue
 import net.minecraft.client.entity.EntityOtherPlayerMP
 import net.minecraft.network.Packet
@@ -50,7 +52,9 @@ object FakeLag : Module("FakeLag", ModuleCategory.PLAYER, gameDetecting = false)
     private val positions = ConcurrentHashMap<Vec3, Pair<Long, Long>>()
     private val delay by IntegerValue("Delay", 550, 0..1000)
     private val recoilTime by IntegerValue("RecoilTime", 750, 0..2000)
+    private val distanceToPlayers by FloatValue("AllowedDistanceToPlayers", 3.5f, 0.0f..6.0f)
     private val resetTimer = MSTimer()
+    private var wasNearPlayer = false
 
     override fun onDisable() {
         if (mc.thePlayer == null)
@@ -69,10 +73,14 @@ object FakeLag : Module("FakeLag", ModuleCategory.PLAYER, gameDetecting = false)
         if (event.isCancelled)
             return
 
+        if (distanceToPlayers > 0.0 && wasNearPlayer)
+            return
+
         when (packet) {
-            is C00Handshake, is C00PacketServerQuery, is C01PacketPing, is S02PacketChat, is S40PacketDisconnect -> {
+            is C00Handshake, is C00PacketServerQuery, is C01PacketPing -> {
                 return
             }
+
             // Flush on doing action, getting action
             is S08PacketPlayerPosLook, is C08PacketPlayerBlockPlacement, is C07PacketPlayerDigging, is C12PacketUpdateSign, is C02PacketUseEntity, is C19PacketResourcePackStatus -> {
                 blink()
@@ -92,6 +100,7 @@ object FakeLag : Module("FakeLag", ModuleCategory.PLAYER, gameDetecting = false)
                         return
                 }
             }
+
             // Flush on damage
             is S06PacketUpdateHealth -> {
                 if (packet.getHealth() < mc.thePlayer.getHealth()) {
@@ -104,13 +113,12 @@ object FakeLag : Module("FakeLag", ModuleCategory.PLAYER, gameDetecting = false)
         if (!resetTimer.hasTimePassed(recoilTime))
             return
 
-        if (packet is C03PacketPlayer && packet.isMoving) {
-            val packetPos = Vec3(packet.x, packet.y, packet.z)
-            positions[packetPos] = System.currentTimeMillis() to System.nanoTime()
-        }
-
         if (event.eventType == EventState.SEND) {
             event.cancelEvent()
+            if (packet is C03PacketPlayer && packet.isMoving) {
+                val packetPos = Vec3(packet.x, packet.y, packet.z)
+                positions[packetPos] = System.currentTimeMillis() to System.nanoTime()
+            }
             packetQueue[packet] = System.currentTimeMillis() to System.nanoTime()
         }
     }
@@ -127,6 +135,23 @@ object FakeLag : Module("FakeLag", ModuleCategory.PLAYER, gameDetecting = false)
     fun onUpdate(event: UpdateEvent) {
         val thePlayer = mc.thePlayer ?: return
 
+        if (distanceToPlayers > 0.0) {
+            val filtered = positions.entries.sortedBy { it.value.second }.map { it.key }
+            var serverPos = filtered.firstOrNull()
+            if (serverPos == null)
+                serverPos = Vec3(mc.thePlayer.posX, mc.thePlayer.posY, mc.thePlayer.posZ)
+            val otherPlayers = mc.theWorld.playerEntities.filter { it != mc.thePlayer }
+            val playerBox = thePlayer.entityBoundingBox.offset(serverPos.xCoord - thePlayer.posX, serverPos.yCoord - thePlayer.posY, serverPos.zCoord - thePlayer.posZ)
+            wasNearPlayer = false
+            for (player in otherPlayers) {
+                val eyePos = Vec3(player.posX, player.posY + 1.62, player.posZ)
+                if (eyePos.distanceTo(getNearestPointBB(eyePos, playerBox)) <= distanceToPlayers.toDouble()) {
+                    blink()
+                    wasNearPlayer = true
+                    return
+                }
+            }
+        }
         val module = Blink
         if (module.blinkingSend() || mc.thePlayer.isDead || thePlayer.isUsingItem)
         {
