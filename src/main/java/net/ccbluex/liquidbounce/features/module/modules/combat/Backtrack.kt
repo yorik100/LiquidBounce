@@ -285,23 +285,23 @@ object Backtrack : Module("Backtrack", Category.COMBAT, hideModule = false) {
         val targetMixin = target as? IMixinEntity
         if (mode == "Modern")
         {
-            if (targetMixin != null)
+            if (targetMixin != null && shouldBacktrack() && !Blink.blinkingReceive() && targetMixin.truePos)
             {
-                if (!Blink.blinkingReceive() && shouldBacktrack() && targetMixin.truePos) {
-                    val trueDist = mc.thePlayer.getDistance(targetMixin.trueX, targetMixin.trueY, targetMixin.trueZ)
-                    val dist = mc.thePlayer.getDistance(target.posX, target.posY, target.posZ)
+                val trueDist = mc.thePlayer.getDistance(targetMixin.trueX, targetMixin.trueY, targetMixin.trueZ)
+                val dist = mc.thePlayer.getDistance(target.posX, target.posY, target.posZ)
         
-                    if (trueDist <= 6f && (!smart || trueDist >= dist) && (style == "Smooth" || !globalTimer.hasTimePassed(delay))) {
-                        shouldRender = true
+                if (trueDist <= 6f && (!smart || trueDist >= dist) && (style == "Smooth" || !globalTimer.hasTimePassed(delay))) {
+                    shouldRender = true
         
-                        if (mc.thePlayer.getDistanceToEntityBox(target) in minDistance..maxDistance)
-                            handlePackets()
-                        else
-                            handlePacketsRange()
-                    } else {
-                        clearPackets()
-                        globalTimer.reset()
-                    }
+                    if (mc.thePlayer.getDistanceToEntityBox(target) in minDistance..maxDistance)
+                        handlePackets()
+                    else
+                        handlePacketsRange()
+                }
+                else
+                {
+                    clearPackets()
+                    globalTimer.reset()
                 }
             }
             else
